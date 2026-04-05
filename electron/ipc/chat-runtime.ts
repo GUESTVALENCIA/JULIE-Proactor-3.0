@@ -143,27 +143,30 @@ function withFallbackHistory(params: any, ...entries: string[]) {
 function buildFallbackCandidates(params: any): ProviderFallbackCandidate[] {
   const candidates: ProviderFallbackCandidate[] = []
 
+  // Prioridad 1: G4F local (gratuito)
+  candidates.push({
+    provider: 'g4f',
+    params: { ...params, model: 'gpt-4o', baseUrl: G4F_LOCAL_URL },
+    reason: 'G4F local (free)',
+  })
+
+  // Prioridad 2: OpenRouter (modelos gratuitos/económicos)
   if (getSecret('openrouter')) {
     candidates.push({
       provider: 'openrouter',
       params: { ...params, model: 'openrouter/auto', baseUrl: OPENROUTER_DIRECT_URL },
-      reason: 'OpenRouter auto',
+      reason: 'OpenRouter auto (tier 1)',
     })
   }
 
+  // Prioridad 3: DeepSeek (Directo, ultra económico y potente - Oficial)
   if (getSecret('deepseek')) {
     candidates.push({
       provider: 'deepseek',
       params: { ...params, model: 'deepseek-chat', baseUrl: DEEPSEEK_DIRECT_URL },
-      reason: 'DeepSeek direct',
+      reason: 'DeepSeek official (stable)',
     })
   }
-
-  candidates.push({
-    provider: 'g4f',
-    params: { ...params, model: 'gpt-4o', baseUrl: G4F_LOCAL_URL },
-    reason: 'G4F local',
-  })
 
   return candidates
 }

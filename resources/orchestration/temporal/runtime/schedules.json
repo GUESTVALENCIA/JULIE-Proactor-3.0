@@ -3,7 +3,7 @@
   "syncedAt": "2026-04-03T06:23:35.337Z",
   "schedules": [
     {
-      "scheduleId": "sofia-openclaw-refresh-schedule",
+      "scheduleId": "juliet-openclaw-refresh-schedule",
       "label": "Refresh OpenClaw",
       "workflowType": "openclawKnowledgeRefreshWorkflow",
       "intervalLabel": "cada 6 horas",
@@ -13,7 +13,7 @@
       "recentActionAt": "2026-04-03T06:20:54.323Z"
     },
     {
-      "scheduleId": "sofia-openclaw-coverage-schedule",
+      "scheduleId": "juliet-openclaw-coverage-schedule",
       "label": "Auditoria de cobertura",
       "workflowType": "openclawCoverageAuditWorkflow",
       "intervalLabel": "cada 12 horas",

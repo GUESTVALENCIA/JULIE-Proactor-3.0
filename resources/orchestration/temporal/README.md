@@ -1,6 +1,6 @@
-# Temporal OSS para Sofía
+# Temporal OSS para Juliet
 
-Instalacion self-hosted basada en las referencias oficiales de Temporal OSS y el compose oficial de `temporalio/docker-compose`, adaptada a puertos que no colisionan con el stack actual de Sofía.
+Instalacion self-hosted basada en las referencias oficiales de Temporal OSS y el compose oficial de `temporalio/docker-compose`, adaptada a puertos que no colisionan con el stack actual de Juliet.
 
 ## Servicios
 
@@ -23,7 +23,7 @@ npm run temporal:supervisor:stop
 npm run temporal:health
 ```
 
-## Rol dentro de Sofía
+## Rol dentro de Juliet
 
 - motor durable para workflows del disparador interno;
 - retries, reanudacion y trazabilidad de ejecucion;
@@ -33,12 +33,12 @@ npm run temporal:health
 
 ## Worker activo en esta fase
 
-- task queue: `sofia-openclaw-knowledge`
+- task queue: `juliet-openclaw-knowledge`
 - workflow real: `openclawKnowledgeTriggerWorkflow`
 - activity real: `resolveOpenClawKnowledge`
 - schedules:
-  - `sofia-openclaw-refresh-schedule`
-  - `sofia-openclaw-coverage-schedule`
+  - `juliet-openclaw-refresh-schedule`
+  - `juliet-openclaw-coverage-schedule`
 - supervisor:
   - `src/core/knowledge-trigger/temporal-supervisor.ts`
 - logs del worker:

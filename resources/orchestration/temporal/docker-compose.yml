@@ -1,6 +1,6 @@
 services:
   temporal-postgresql:
-    container_name: sofia-temporal-postgresql
+    container_name: juliet-temporal-postgresql
     image: postgres:${POSTGRESQL_VERSION}
     environment:
       POSTGRES_PASSWORD: temporal
@@ -10,10 +10,10 @@ services:
     volumes:
       - temporal-postgres-data:/var/lib/postgresql/data
     networks:
-      - sofia-temporal-network
+      - juliet-temporal-network
 
   temporal:
-    container_name: sofia-temporal
+    container_name: juliet-temporal
     image: temporalio/auto-setup:${TEMPORAL_VERSION}
     depends_on:
       - temporal-postgresql
@@ -31,10 +31,10 @@ services:
     volumes:
       - ..\\temporal-docker-compose\\dynamicconfig:/etc/temporal/config/dynamicconfig
     networks:
-      - sofia-temporal-network
+      - juliet-temporal-network
 
   temporal-admin-tools:
-    container_name: sofia-temporal-admin-tools
+    container_name: juliet-temporal-admin-tools
     image: temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_VERSION}
     depends_on:
       - temporal
@@ -44,10 +44,10 @@ services:
     stdin_open: true
     tty: true
     networks:
-      - sofia-temporal-network
+      - juliet-temporal-network
 
   temporal-ui:
-    container_name: sofia-temporal-ui
+    container_name: juliet-temporal-ui
     image: temporalio/ui:${TEMPORAL_UI_VERSION}
     depends_on:
       - temporal
@@ -57,12 +57,12 @@ services:
     ports:
       - "8233:8080"
     networks:
-      - sofia-temporal-network
+      - juliet-temporal-network
 
 networks:
-  sofia-temporal-network:
+  juliet-temporal-network:
     driver: bridge
-    name: sofia-temporal-network
+    name: juliet-temporal-network
 
 volumes:
   temporal-postgres-data:

@@ -1,11 +1,11 @@
-# 🚀 SOFÍA 3.0 — Guía de Instalación y Testing
+# 🚀 JULIET 3.0 — Guía de Instalación y Testing
 
 ## ✅ Estado: COMPILACIÓN Y BUILD COMPLETADO
 
 ```
 ✅ Código compilado sin errores
 ✅ Bundled: Renderer (405KB) + Main (293KB) + Preload (1.89KB)
-✅ Instalador creado: release/SOFÍA Setup 3.0.0.exe (86 MB)
+✅ Instalador creado: release/JULIET Setup 3.0.0.exe (86 MB)
 ✅ Signtool: Firmado digitalmente
 ✅ NSIS: Instalador NSIS generado
 ```
@@ -72,17 +72,17 @@
 ### Paso 1: Descargar Instalador
 ```bash
 # Instalador ubicado en:
-C:\Users\clayt\Desktop\SOFÍA 3.0\release\SOFÍA Setup 3.0.0.exe
+C:\Users\clayt\Desktop\JULIET 3.0\release\JULIET Setup 3.0.0.exe
 ```
 
 ### Paso 2: Ejecutar Instalador
-1. **Doble-click** en `SOFÍA Setup 3.0.0.exe`
-2. Seleccionar ubicación de instalación (recomendado: `C:\Program Files\SOFÍA`)
+1. **Doble-click** en `JULIET Setup 3.0.0.exe`
+2. Seleccionar ubicación de instalación (recomendado: `C:\Program Files\JULIET`)
 3. Aceptar y completar la instalación
 4. Se crea shortcut en Escritorio
 
 ### Paso 3: Primer Lanzamiento
-1. **Abrir** SOFÍA desde Escritorio o Inicio
+1. **Abrir** JULIET desde Escritorio o Inicio
 2. **Esperar** <2 segundos para arranque rápido
 3. **Configurar** API keys en panel Settings (⚙️)
 
@@ -139,7 +139,7 @@ Para cada uno, pegar la clave **actual** en el campo correspondiente:
 
 ### Test 5: Calidad de Código
 ```bash
-cd "C:\Users\clayt\Desktop\SOFÍA 3.0"
+cd "C:\Users\clayt\Desktop\JULIET 3.0"
 npm run doctor
 ```
 Verifica el score de calidad React (meta: ≥ 70).
@@ -152,7 +152,7 @@ Para usar **OpenClaw Pro** (Claude Pro / GPT Pro vía OAuth):
 
 ```bash
 # En terminal (desde proyecto)
-docker-compose up -d sofia-redis sofia-qdrant sofia-openclaw
+docker-compose up -d juliet-redis juliet-qdrant juliet-openclaw
 
 # Verificar puerto 18789
 curl http://127.0.0.1:18789/healthz
@@ -178,12 +178,12 @@ curl http://127.0.0.1:18789/healthz
 ## 🚨 Troubleshooting
 
 ### App no abre
-- Usar el acceso oficial: `C:\Users\clayt\Desktop\SOFÍA.lnk`
-- Ese acceso debe apuntar al wrapper estable `C:\Users\clayt\Desktop\SOFÍA 3.0\launch-sofia.cmd`
-- La salida oficial del build es `C:\Users\clayt\Desktop\SOFÍA 3.0\release\win-unpacked\SOFÍA.exe`
+- Usar el acceso oficial: `C:\Users\clayt\Desktop\JULIET.lnk`
+- Ese acceso debe apuntar al wrapper estable `C:\Users\clayt\Desktop\JULIET 3.0\launch-juliet.cmd`
+- La salida oficial del build es `C:\Users\clayt\Desktop\JULIET 3.0\release\win-unpacked\JULIET.exe`
 - Ignorar referencias antiguas a `Program Files` o a builds `release-ui*`
-- Verificar `C:\Program Files\SOFÍA\SOFÍA.exe`
-- Abrir desde línea de comandos: `"C:\Program Files\SOFÍA\SOFÍA.exe" --no-sandbox`
+- Verificar `C:\Program Files\JULIET\JULIET.exe`
+- Abrir desde línea de comandos: `"C:\Program Files\JULIET\JULIET.exe" --no-sandbox`
 
 ### Chat sin respuesta
 - Verificar API key en Settings
@@ -195,7 +195,7 @@ curl http://127.0.0.1:18789/healthz
 
 ### Build customizado
 ```bash
-cd "C:\Users\clayt\Desktop\SOFÍA 3.0"
+cd "C:\Users\clayt\Desktop\JULIET 3.0"
 npm run build      # Solo React + Electron
 npm run dist       # Build + Installer (NSIS)
 npm run doctor     # Verificar calidad
@@ -207,7 +207,7 @@ npm run doctor     # Verificar calidad
 
 ```
 ┌─────────────────────────────────────────┐
-│ SOFÍA 3.0 (Escritorio Windows)          │
+│ JULIET 3.0 (Escritorio Windows)          │
 ├─────────────────────────────────────────┤
 │                                         │
 │  Renderer (React 19)                    │
@@ -253,7 +253,7 @@ npm run doctor     # Verificar calidad
 
 ## 📝 Resumen Final
 
-**SOFÍA 3.0 es un asistente de IA de escritorio completamente funcional con**:
+**JULIET 3.0 es un asistente de IA de escritorio completamente funcional con**:
 
 ✅ **10+ proveedores LLM** (OpenAI-compat, Anthropic, custom)
 ✅ **Multimodal**: Imágenes (vision) + Texto
@@ -264,7 +264,7 @@ npm run doctor     # Verificar calidad
 ✅ **Seguridad**: API keys en safeStorage (cifrado Windows)
 ✅ **Performance**: Bundle <500KB (gzip), startup <2s
 
-**Instalador listo para distribución: `release/SOFÍA Setup 3.0.0.exe`**
+**Instalador listo para distribución: `release/JULIET Setup 3.0.0.exe`**
 
 ---
 

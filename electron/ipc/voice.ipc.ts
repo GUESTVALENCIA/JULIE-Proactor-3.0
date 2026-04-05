@@ -210,11 +210,26 @@ export function registerVoiceIPC(ipcMain: IpcMain, win: BrowserWindow) {
         params.baseUrl = 'http://localhost:8080/v1'
       }
 
-      await runAgenticLoop(provider, params, (chunk) => {
-        // Filtrar transcripciones de texto para el pipeline de voz (mejorar calidad)
-        if (chunk.type === 'text') return;
-        emitChunk(chunk);
+      let fullText = ''
+      await runAgenticLoop(provider, params, async (chunk) => {
+        if (chunk.type === 'text') {
+          fullText += (chunk.text as string)
+          // Si termina en punto o es suficientemente largo, podemos disparar TTS parcial
+          if (fullText.length > 60 && /[.!?]\s*$/.test(fullText)) {
+            const ttsRes = await performTTS(fullText, params.actor)
+            if (ttsRes) emitChunk({ type: 'audio', data: ttsRes })
+            fullText = ''
+          }
+          return
+        }
+        emitChunk(chunk)
       }, voiceAbortController.signal)
+
+      // Procesar resto del texto si quedó algo
+      if (fullText.trim()) {
+        const ttsRes = await performTTS(fullText, params.actor)
+        if (ttsRes) emitChunk({ type: 'audio', data: ttsRes })
+      }
       win.webContents.send('voice:llm-chunk', { type: 'done' })
     } catch (e: any) {
       if (e.name === 'AbortError') return
@@ -229,59 +244,91 @@ export function registerVoiceIPC(ipcMain: IpcMain, win: BrowserWindow) {
     voiceAbortController = null
   })
 
-  // TTS vía proceso principal (evita 403 desde renderer)
-  ipcMain.handle('voice:tts', async (_e, { text, actor, provider, voice }: { text: string; actor?: string; provider?: string; voice?: string }) => {
-    // Jules/Juliet usa Microsoft Edge TTS 'Elvira Neural' por defecto
-    const isTechnicalJules = actor === 'jules' || actor === 'juliet'
-    const useEdge = provider === 'edge' || isTechnicalJules || voice?.includes('Elvira')
-
-    if (useEdge) {
-      try {
-        // Mapeo preferente: Elvira Neural para un tono profesional español peninsular
-        const targetVoice = isTechnicalJules ? 'es-ES-ElviraNeural' : (voice || 'es-ES-ElviraNeural')
-
-        const res = await fetch('http://localhost:8080/v1/audio/speech', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            input: text,
-            voice: targetVoice,
-            model: 'tts-1',
-            response_format: 'mp3'
-          }),
-          signal: AbortSignal.timeout(15000)
-        })
-        if (res.ok) {
-          const buf = await res.arrayBuffer()
-          return Buffer.from(buf).toString('base64')
-        }
-      } catch (e) {
-        console.warn('[TTS Edge] Error en Elvira Neural, intentando fallback técnico:', e)
-      }
-    }
-
+  ipcMain.handle('voice:send-audio-chunk', async (_e, base64: string) => {
+    // Procesar audio del usuario para STT (Deepgram)
     const dgKey = getSecret('deepgram')
-    const voiceModel = (actor === 'jules' || actor === 'juliet') ? 'aura-2-karina-es' : 'aura-2-carina-es'
+    if (!dgKey) return { error: 'No Deepgram key' }
 
-    if (!dgKey) return null
     try {
-      const res = await fetch(
-        `https://api.deepgram.com/v1/speak?model=${voiceModel}&encoding=mp3`,
-        {
-          method: 'POST',
-          headers: { Authorization: `Token ${dgKey}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text }),
-        }
-      )
-      if (!res.ok) {
-        console.error(`[TTS DG] ${res.status}: ${await res.text()}`)
-        return null
+      const res = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&language=es-ES&smart_format=true', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Token ${dgKey}`,
+          'Content-Type': 'audio/webm'
+        },
+        body: Buffer.from(base64, 'base64')
+      })
+
+      if (!res.ok) return { error: `DG Error ${res.status}` }
+      const data = await res.json()
+      const transcript = data.results?.channels?.[0]?.alternatives?.[0]?.transcript
+
+      if (transcript && transcript.trim()) {
+        win.webContents.send('voice:transcript', { text: transcript, isFinal: true })
       }
-      const buf = await res.arrayBuffer()
-      return Buffer.from(buf).toString('base64')
+      return { ok: true }
     } catch (e: any) {
-      console.error('[TTS DG] Error:', e.message)
-      return null
+      return { error: e.message }
     }
   })
+
+  // TTS vía proceso principal (evita 403 desde renderer)
+  ipcMain.handle('voice:tts', async (_e, { text, actor, provider, voice }: { text: string; actor?: string; provider?: string; voice?: string }) => {
+    return performTTS(text, actor, provider, voice)
+  })
+}
+
+async function performTTS(text: string, actor?: string, provider?: string, voice?: string) {
+  // Jules/Juliet usa Microsoft Edge TTS 'Elvira Neural' por defecto
+  const isTechnicalJules = actor === 'jules' || actor === 'juliet'
+  const useEdge = provider === 'edge' || isTechnicalJules || voice?.includes('Elvira')
+
+  if (useEdge) {
+    try {
+      // Mapeo preferente: Elvira Neural para un tono profesional español peninsular
+      const targetVoice = isTechnicalJules ? 'es-ES-ElviraNeural' : (voice || 'es-ES-ElviraNeural')
+
+      const res = await fetch('http://localhost:8080/v1/audio/speech', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          input: text,
+          voice: targetVoice,
+          model: 'tts-1',
+          response_format: 'mp3'
+        }),
+        signal: AbortSignal.timeout(15000)
+      })
+      if (res.ok) {
+        const buf = await res.arrayBuffer()
+        return Buffer.from(buf).toString('base64')
+      }
+    } catch (e) {
+      console.warn('[TTS Edge] Error en Elvira Neural, intentando fallback técnico:', e)
+    }
+  }
+
+  const dgKey = getSecret('deepgram')
+  const voiceModel = (actor === 'jules' || actor === 'juliet') ? 'aura-2-karina-es' : 'aura-2-carina-es'
+
+  if (!dgKey) return null
+  try {
+    const res = await fetch(
+      `https://api.deepgram.com/v1/speak?model=${voiceModel}&encoding=mp3`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Token ${dgKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      }
+    )
+    if (!res.ok) {
+      console.error(`[TTS DG] ${res.status}: ${await res.text()}`)
+      return null
+    }
+    const buf = await res.arrayBuffer()
+    return Buffer.from(buf).toString('base64')
+  } catch (e: any) {
+    console.error('[TTS DG] Error:', e.message)
+    return null
+  }
 }

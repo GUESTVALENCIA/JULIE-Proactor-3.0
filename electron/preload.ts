@@ -31,6 +31,8 @@ contextBridge.exposeInMainWorld('juliet', {
         abortLLM: () => ipcRenderer.invoke('voice:abort-llm'),
         onLLMChunk: (cb: (chunk: any) => void) => onEvent('voice:llm-chunk', cb),
         tts: (text: string, actor?: string) => ipcRenderer.invoke('voice:tts', { text, actor }),
+        sendAudioChunk: (base64: string) => ipcRenderer.invoke('voice:send-audio-chunk', base64),
+        onTranscript: (cb: (data: { text: string }) => void) => onEvent('voice:transcript', cb),
       },
 
       // Memoria - gestión de conversaciones y contexto

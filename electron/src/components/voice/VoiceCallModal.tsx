@@ -42,14 +42,23 @@ export function VoiceCallModal({ messages, mode, direction, actor, onClose }: Vo
   const isPlayingRef = useRef(false)
   const cleanupListenerRef = useRef<(() => void) | null>(null)
 
+  // Usar refs para evitar stale closures en los listeners de IPC
+  const stateRef = useRef(state)
+  const messagesRef = useRef(messages)
+
+  useEffect(() => {
+    stateRef.current = state
+    messagesRef.current = messages
+  }, [state, messages])
+
   useEffect(() => {
     void loadAvatarScene()
     if (direction === 'outgoing') {
       void startCall()
     }
 
-    // Listener para fragmentos de audio desde el main process (transcripción eliminada por calidad)
-    cleanupListenerRef.current = window.juliet.voice.onLLMChunk((chunk: any) => {
+    // Listener para fragmentos de audio desde el main process
+    const cleanupChunks = window.juliet.voice.onLLMChunk((chunk: any) => {
       if (chunk.type === 'audio') {
         audioQueueRef.current.push(chunk.data)
         if (!isPlayingRef.current) {
@@ -63,6 +72,26 @@ export function VoiceCallModal({ messages, mode, direction, actor, onClose }: Vo
         setError(chunk.error)
       }
     })
+
+    // Listener para transcripciones (STT) para activar respuesta LLM
+    const cleanupTranscript = (window.juliet as any).voice.onTranscript && (window.juliet as any).voice.onTranscript(async (data: { text: string }) => {
+       if (data.text && stateRef.current === 'listening') {
+          setTranscript(prev => prev + ' ' + data.text)
+          // Activar respuesta LLM si hay una pausa o después de cada frase (proactivo)
+          await window.juliet.voice.sendToLLM({
+            actor,
+            messages: [
+              ...messagesRef.current.map(m => ({ role: m.role, content: m.content })),
+              { role: 'user', content: data.text }
+            ]
+          })
+       }
+    })
+
+    cleanupListenerRef.current = () => {
+      cleanupChunks?.()
+      cleanupTranscript?.()
+    }
 
     return () => {
       cleanupListenerRef.current?.()
@@ -120,12 +149,16 @@ export function VoiceCallModal({ messages, mode, direction, actor, onClose }: Vo
 
     mediaRecorderRef.current.ondataavailable = async e => {
       if (e.data.size > 0 && state === 'listening') {
-        // Enviar audio al main para STT + LLM
-        // Nota: En esta versión simplificada, enviamos el turno completo al final o por chunks
-        // Por ahora, usamos el API de chat para procesar la voz
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          const res = reader.result as string
+          const base64 = res.split(',')[1]
+          void (window.juliet as any).voice.sendAudioChunk(base64)
+        }
+        reader.readAsDataURL(e.data)
       }
     }
-    mediaRecorderRef.current.start(1000)
+    mediaRecorderRef.current.start(2000)
 
     // Iniciar el turno del LLM proactivamente o esperar a que el usuario hable
     // Simulamos un saludo inicial de Jules si es outgoing
