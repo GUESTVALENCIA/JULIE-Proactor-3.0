@@ -22,11 +22,14 @@ import {
   getDynamicToolCatalogStatus,
 } from './ipc/mcp.ipc'
 import { registerKnowledgeIPC } from './ipc/knowledge.ipc'
+import { getTextInterceptor, destroyTextInterceptor } from './services/textInterceptor'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
 let mainWindow: BrowserWindow | null = null
+let keyboardCaptureActive = false
+const textInterceptor = getTextInterceptor()
 let electronMcpServer: Server | null = null
 
 // ── .env.local loader (para pasar variables al gateway spawneado) ────────────
@@ -424,6 +427,33 @@ function createWindow() {
   })
   ipcMain.handle('window:close', () => mainWindow?.close())
   ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized() ?? false)
+
+  // ─── Text Interceptor (Keyboard Global Hook) ─────────────────────────────
+  ipcMain.handle('keyboard:start-capture', async () => {
+    if (keyboardCaptureActive) return true
+
+    textInterceptor.onText((captured) => {
+      mainWindow?.webContents.send('keyboard:text', captured)
+    })
+
+    const success = await textInterceptor.start()
+    keyboardCaptureActive = success
+    return success
+  })
+
+  ipcMain.handle('keyboard:stop-capture', () => {
+    textInterceptor.stop()
+    keyboardCaptureActive = false
+    return true
+  })
+
+  ipcMain.handle('keyboard:get-status', () => {
+    return {
+      active: keyboardCaptureActive,
+      buffer: textInterceptor.getBuffer(),
+    }
+  })
+
   ipcMain.handle('desktop:open-path', async (_event, targetPath: string) => {
     const error = await shell.openPath(targetPath)
     return { ok: error === '', error }

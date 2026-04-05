@@ -225,8 +225,8 @@ export function WorkspaceChrome({
   const gatewayOnline = false
   const proactorOnline = serverMap.proactor?.status === 'connected'
   const vaultPath = DEFAULT_VAULT_PATH
-  const leftInsetClass = leftPanel === 'none' ? 'pl-[78px]' : 'pl-[362px]'
-  const rightInsetClass = rightPanel === 'none' ? 'pr-[78px]' : 'pr-[382px]'
+  const leftInsetClass = leftPanel === 'none' ? 'pl-[52px]' : 'pl-[362px]'
+  const rightInsetClass = rightPanel === 'none' ? 'pr-[52px]' : 'pr-[382px]'
   const notableServers = editorInventory?.summary?.notableServers ?? []
 
   async function loadShellPrefs() {

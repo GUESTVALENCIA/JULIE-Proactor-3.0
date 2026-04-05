@@ -784,7 +784,7 @@ export function ChatArea({
         apiKeys={apiKeys}
         routerNotice={routerNotice}
       />
-      <div className="min-h-0 flex-1 overflow-hidden pb-[calc(190px+var(--terminal-tray-height,0px))]">
+      <div className="min-h-0 flex-1 overflow-hidden pb-[80px]">
         <MessageList
           messages={messages}
           streamingText={streamingText}

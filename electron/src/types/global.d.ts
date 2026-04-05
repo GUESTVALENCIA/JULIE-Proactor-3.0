@@ -21,7 +21,7 @@ interface JulietAPI {
     sendToLLM: (params: any) => Promise<void>
     abortLLM: () => Promise<void>
     onLLMChunk: (cb: (chunk: StreamChunk) => void) => () => void
-    tts: (text: string) => Promise<string | null>
+    tts: (text: string, actor?: string) => Promise<string | null>
   }
   // Memoria
   memory: {
@@ -35,6 +35,17 @@ interface JulietAPI {
     saveMemory: (mem: { category: string; key: string; content: string; source_conversation_id?: string; confidence?: number }) => Promise<boolean>
     formatMemoriesForPrompt: () => Promise<string>
     initSchema: () => Promise<{ ok: boolean; error?: string }>
+    getSharedVision: (topic: string) => Promise<{ topic: string; content: string; version: number; created_at: string; updated_at: string } | null>
+    saveSharedVision: (topic: string, content: string) => Promise<any>
+    jules: {
+      save: (mem: { category: string; key: string; content: string; confidence?: number }) => Promise<boolean>
+      getAll: () => Promise<any[]>
+    }
+    tasks: {
+      create: (task: { description: string; command?: string }) => Promise<any>
+      getPending: () => Promise<any[]>
+      updateStatus: (params: { id: string; status: string; result?: string }) => Promise<void>
+    }
   }
   // Configuración
   settings: {
@@ -293,6 +304,13 @@ interface JulietAPI {
     getState: () => Promise<Record<string, DirectAuthState>>
     getRuntimeState: () => Promise<Record<string, DirectRuntimeState>>
     onStateChanged: (cb: (state: Record<string, DirectAuthState>) => void) => () => void
+  }
+  // Captura de teclado global
+  keyboard: {
+    startCapture: () => Promise<boolean>
+    stopCapture: () => Promise<boolean>
+    getStatus: () => Promise<{ active: boolean; buffer: string }>
+    onText: (cb: (data: { text: string; app: string; timestamp: number }) => void) => () => void
   }
   // Control de ventana
   window: {

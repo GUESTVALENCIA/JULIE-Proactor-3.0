@@ -35,6 +35,7 @@
     "@neondatabase/serverless": "^0.10.4",
     "electron-store": "^10.0.0",
     "lucide-react": "^0.468.0",
+    "node-global-key-listener": "^0.3.0",
     "openai": "^4.77.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

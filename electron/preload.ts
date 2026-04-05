@@ -118,6 +118,14 @@ contextBridge.exposeInMainWorld('juliet', {
         onStateChanged: (cb: (state: any) => void) => onEvent('direct:auth-state-changed', cb),
       },
 
+      // Captura de teclado global
+      keyboard: {
+        startCapture: () => ipcRenderer.invoke('keyboard:start-capture'),
+        stopCapture: () => ipcRenderer.invoke('keyboard:stop-capture'),
+        getStatus: () => ipcRenderer.invoke('keyboard:get-status'),
+        onText: (cb: (data: { text: string; app: string; timestamp: number }) => void) => onEvent('keyboard:text', cb),
+      },
+
       // Controles de ventana
       window: {
         minimize: () => ipcRenderer.invoke('window:minimize'),
