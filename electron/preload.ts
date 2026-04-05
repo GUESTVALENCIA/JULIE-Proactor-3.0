@@ -47,6 +47,7 @@ contextBridge.exposeInMainWorld('juliet', {
         saveMemory: (mem: any) => ipcRenderer.invoke('memory:save', mem),
         getSharedVision: (topic: string) => ipcRenderer.invoke('memory:shared-vision:get', topic),
         saveSharedVision: (topic: string, content: string) => ipcRenderer.invoke('memory:shared-vision:save', { topic, content }),
+        getAllSharedVision: () => ipcRenderer.invoke('memory:shared-vision:get-all'),
         formatMemoriesForPrompt: () => ipcRenderer.invoke('memory:format-for-prompt'),
         initSchema: () => ipcRenderer.invoke('memory:init-schema'),
         jules: {

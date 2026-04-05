@@ -100,7 +100,10 @@ export function ChatArea({
   const FREE_DAILY_LIMIT = 1000
 
   // Estimate context usage
-  const contextUsed = messages.reduce((sum, m) => sum + (m.content?.length || 0), 0)
+  const contextUsed = messages.reduce((sum, m) => {
+    const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
+    return sum + (content?.length || 0)
+  }, 0)
   const modelInfo = getModelInfo(selectedProvider, selectedModel)
   const maxContext = modelInfo?.contextLength || 128000
   const contextPercent = Math.min(100, Math.round((contextUsed / 4 / maxContext) * 100))
@@ -389,6 +392,14 @@ export function ChatArea({
             conversationId: convId,
             role: 'assistant',
             content: normalizedText,
+          })
+
+          // Disparar audio proactivamente para la respuesta de texto
+          window.juliet.voice.tts(normalizedText, 'jules').then(base64 => {
+            if (base64) {
+              const audio = new Audio(`data:audio/mp3;base64,${base64}`)
+              audio.play().catch(e => console.warn('[Chat TTS] Autoplay bloqueado:', e))
+            }
           })
 
           extractMemories(userText, normalizedText, convId)

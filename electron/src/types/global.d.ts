@@ -35,6 +35,21 @@ interface JulietAPI {
     saveMemory: (mem: { category: string; key: string; content: string; source_conversation_id?: string; confidence?: number }) => Promise<boolean>
     formatMemoriesForPrompt: () => Promise<string>
     initSchema: () => Promise<{ ok: boolean; error?: string }>
+    // Shared Vision (Jules/Clay layer)
+    getSharedVision: (topic: string) => Promise<{ topic: string, content: string } | null>
+    saveSharedVision: (topic: string, content: string) => Promise<boolean>
+    getAllSharedVision: () => Promise<any[]>
+    // Jules dedicated
+    jules: {
+      save: (mem: { category: string, key: string, content: string, confidence?: number }) => Promise<boolean>
+      getAll: () => Promise<any[]>
+    }
+    // Tasks
+    tasks: {
+      create: (task: { description: string, command?: string }) => Promise<any>
+      getPending: () => Promise<any[]>
+      updateStatus: (params: { id: string, status: string, result?: string }) => Promise<boolean>
+    }
   }
   // Configuración
   settings: {

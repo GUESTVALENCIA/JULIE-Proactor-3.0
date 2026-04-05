@@ -57,7 +57,13 @@ export default function App() {
   // Init: load conversations and schema
   useEffect(() => {
     async function init() {
-      await window.juliet.memory.initSchema()
+      try {
+        await window.juliet.memory.initSchema()
+      } catch (e) {
+        console.error('[App] Database init failed. Retrying in 5s...', e)
+        setTimeout(init, 5000)
+        return
+      }
       const keys = await window.juliet.settings.getAllKeys()
       setApiKeys(keys)
       const convos = await window.juliet.memory.getConversations()
@@ -116,6 +122,13 @@ export default function App() {
           })
           // Limpiar el trigger
           await window.juliet.memory.saveSharedVision('wake-jules', 'idle')
+        }
+
+        // Tareas proactivas de agentes (Nati/Sandra)
+        const taskNotification = await window.juliet.memory.getSharedVision('task-notification')
+        if (taskNotification && taskNotification.content.startsWith('Completada:')) {
+           // Si es una tarea de producción multimedia, podríamos querer que Sandra nos llame
+           // pero por ahora solo limpia el estado para evitar bucles de UI
         }
       } catch {}
     }

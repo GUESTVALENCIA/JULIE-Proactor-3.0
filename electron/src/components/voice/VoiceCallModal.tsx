@@ -60,6 +60,9 @@ export function VoiceCallModal({ messages, mode, direction, actor, onClose }: Vo
     // Listener para fragmentos de audio desde el main process
     const cleanupChunks = window.juliet.voice.onLLMChunk((chunk: any) => {
       if (chunk.type === 'audio') {
+        // Implementar Barge-in: si Jules está hablando y el usuario empieza a hablar,
+        // pero aquí el evento viene del LLM, así que simplemente encolamos.
+        // La interrupción real se maneja en onTranscript.
         audioQueueRef.current.push(chunk.data)
         if (!isPlayingRef.current) {
           void processAudioQueue()
@@ -75,9 +78,22 @@ export function VoiceCallModal({ messages, mode, direction, actor, onClose }: Vo
 
     // Listener para transcripciones (STT) para activar respuesta LLM
     const cleanupTranscript = (window.juliet as any).voice.onTranscript && (window.juliet as any).voice.onTranscript(async (data: { text: string }) => {
-       if (data.text && stateRef.current === 'listening') {
+       if (data.text) {
+          // Lógica de Barge-in: si el usuario habla, interrumpimos el audio actual de Jules
+          if (isPlayingRef.current || stateRef.current === 'speaking') {
+            console.log('[Barge-in] Interrumpiendo respuesta de Jules...')
+            stopCurrentAudio()
+            window.juliet.voice.abortLLM()
+          }
+
           setTranscript(prev => prev + ' ' + data.text)
-          // Activar respuesta LLM si hay una pausa o después de cada frase (proactivo)
+
+          // Cambiar a escuchando si estábamos hablando
+          if (stateRef.current === 'speaking') {
+            setState('listening')
+          }
+
+          // Activar respuesta LLM
           await window.juliet.voice.sendToLLM({
             actor,
             messages: [
@@ -173,10 +189,24 @@ export function VoiceCallModal({ messages, mode, direction, actor, onClose }: Vo
     }
   }
 
+  const currentSourceRef = useRef<AudioBufferSourceNode | null>(null)
+
+  function stopCurrentAudio() {
+    if (currentSourceRef.current) {
+      try {
+        currentSourceRef.current.stop()
+        currentSourceRef.current.onended = null
+      } catch {}
+      currentSourceRef.current = null
+    }
+    audioQueueRef.current = []
+    isPlayingRef.current = false
+  }
+
   async function processAudioQueue() {
     if (audioQueueRef.current.length === 0 || !audioCtxRef.current) {
       isPlayingRef.current = false
-      if (state === 'speaking') setState('listening')
+      if (stateRef.current === 'speaking') setState('listening')
       return
     }
 
@@ -189,9 +219,11 @@ export function VoiceCallModal({ messages, mode, direction, actor, onClose }: Vo
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
       const audioBuffer = await audioCtxRef.current.decodeAudioData(bytes.buffer)
       const source = audioCtxRef.current.createBufferSource()
+      currentSourceRef.current = source
       source.buffer = audioBuffer
       source.connect(audioCtxRef.current.destination)
       source.onended = () => {
+        currentSourceRef.current = null
         void processAudioQueue()
       }
       source.start()

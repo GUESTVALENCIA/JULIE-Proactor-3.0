@@ -245,9 +245,34 @@ export function registerVoiceIPC(ipcMain: IpcMain, win: BrowserWindow) {
   })
 
   ipcMain.handle('voice:send-audio-chunk', async (_e, base64: string) => {
-    // Procesar audio del usuario para STT (Deepgram)
+    // Intentar STT local primero (Microsoft/Whisper en :8080)
+    try {
+      const localRes = await fetch('http://localhost:8080/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          file: base64,
+          model: 'whisper-1',
+          language: 'es',
+          response_format: 'json'
+        }),
+        signal: AbortSignal.timeout(10000)
+      })
+
+      if (localRes.ok) {
+        const data = await localRes.json()
+        if (data.text) {
+          win.webContents.send('voice:transcript', { text: data.text, isFinal: true })
+          return { ok: true }
+        }
+      }
+    } catch (e) {
+      console.warn('[STT Local] Falló o no disponible, usando Deepgram:', e)
+    }
+
+    // Fallback a Deepgram Nova-2
     const dgKey = getSecret('deepgram')
-    if (!dgKey) return { error: 'No Deepgram key' }
+    if (!dgKey) return { error: 'No STT engines available' }
 
     try {
       const res = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&language=es-ES&smart_format=true', {

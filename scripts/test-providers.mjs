@@ -5,7 +5,7 @@
  */
 
 const PROVIDERS = [
-  { name: 'OpenClaw Gateway', url: 'http://localhost:8098/health', type: 'health' },
+  { name: 'Electron MCP', url: 'http://localhost:19875/status', type: 'health' },
   { name: 'G4F Server', url: 'http://localhost:8080/v1/models', type: 'models' },
   { name: 'OpenAI', url: 'https://api.openai.com/v1/models', type: 'api', requiresAuth: true },
   { name: 'Anthropic', url: 'https://api.anthropic.com/v1/messages', type: 'api', requiresAuth: true },
@@ -44,7 +44,7 @@ async function testProvider(provider) {
   }
 }
 
-console.log('\n🔍 Diagnóstico de Proveedores SOFÍA 3.0\n')
+console.log('\n🔍 Diagnóstico de Proveedores JULIET PROACTOR 3.0\n')
 console.log('━'.repeat(60))
 
 let results = []
@@ -66,7 +66,7 @@ if (online < total) {
 }
 
 console.log('\n💡 Servicios críticos:')
-console.log('   • OpenClaw Gateway: http://localhost:8098')
+console.log('   • Electron MCP: http://localhost:19875')
 console.log('   • G4F Server: http://localhost:8080')
 console.log('\n')
 

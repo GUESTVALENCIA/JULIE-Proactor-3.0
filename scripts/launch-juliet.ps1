@@ -207,27 +207,6 @@ function Find-RunningCandidate {
   return $null
 }
 
-function Stop-ConflictingOpenClawProcesses {
-  $openClawExe = 'C:\Users\clayt\AppData\Local\Programs\OpenClaw Desktop\OpenClaw Desktop.exe'
-
-  try {
-    $openClawProcs = Get-CimInstance Win32_Process -Filter "Name = 'OpenClaw Desktop.exe'" -ErrorAction Stop | Where-Object {
-      $_.ExecutablePath -eq $openClawExe
-    }
-
-    foreach ($proc in $openClawProcs) {
-      $procId = [int]$proc.ProcessId
-      try {
-        Stop-Process -Id $procId -Force -ErrorAction Stop
-        Write-LauncherLog 'INFO' "OpenClaw Desktop cerrado para evitar conflicto visual/ruta (PID $procId)"
-      } catch {
-        Write-LauncherLog 'WARN' "No se pudo cerrar OpenClaw Desktop PID ${procId}: $($_.Exception.Message)"
-      }
-    }
-  } catch {
-    Write-LauncherLog 'WARN' "No se pudo inspeccionar OpenClaw Desktop: $($_.Exception.Message)"
-  }
-}
 
 $mutex = New-Object System.Threading.Mutex($false, $MutexName)
 $hasMutex = $false
@@ -262,8 +241,6 @@ try {
     Show-LauncherError -Message $message
     exit 1
   }
-
-  Stop-ConflictingOpenClawProcesses
 
   $running = Find-RunningCandidate -Candidates $candidates
   if ($running) {

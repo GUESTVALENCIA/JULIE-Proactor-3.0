@@ -46,6 +46,12 @@ async function checkAndRunTasks() {
 
           // Notificación visual de éxito en la UI via Shared Vision
           await saveSharedVision('task-notification', `Completada: ${task.description}`);
+
+          // Lógica proactiva: Si la tarea es crítica (contiene "URGENTE" o "LLAMAR"), disparamos wake-jules
+          if (task.description.toUpperCase().includes('URGENTE') || task.description.toUpperCase().includes('LLAMAR')) {
+            console.log('[Proactor] Tarea crítica detectada. Disparando llamada proactiva...');
+            await saveSharedVision('wake-jules', 'active');
+          }
         } else {
           // Tareas de IA pura que no requieren comando shell pero sí orquestación Juliet
           await sql`UPDATE local_tasks SET status = 'processed_by_juliet', updated_at = now() WHERE id = ${task.id}`;

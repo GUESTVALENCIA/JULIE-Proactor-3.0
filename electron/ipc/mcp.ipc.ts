@@ -764,6 +764,45 @@ const LOCAL_RUNTIME_TOOLS: ToolDescriptor[] = [
       required: ['text'],
     },
   },
+  {
+    name: 'proactor_reasoning',
+    description: 'Analiza el contexto actual (chat/voz) para extraer insights, tareas y actualizar la vision compartida.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        insights: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              type: { type: 'string', enum: ['alert', 'idea', 'task', 'log'] },
+              content: { type: 'string' }
+            }
+          }
+        },
+        tasks: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              description: { type: 'string' },
+              command: { type: 'string' }
+            }
+          }
+        },
+        vision_updates: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              topic: { type: 'string' },
+              content: { type: 'string' }
+            }
+          }
+        }
+      }
+    }
+  }
 ]
 
 function attachSource(tools: ToolDescriptor[], source: string) {
@@ -902,6 +941,40 @@ export async function callRealTool(toolName: string, args: Record<string, any>) 
 
   if (toolName === 'generate_audio') {
     return generateAudioWithDeepgram(args)
+  }
+
+  if (toolName === 'proactor_reasoning') {
+    try {
+      const { neon } = await import('@neondatabase/serverless')
+      const url = getSecret('neon_url')
+      if (!url) return { error: 'Neon URL not configured' }
+      const sql = neon(url)
+
+      if (args.tasks && Array.isArray(args.tasks)) {
+        for (const task of args.tasks) {
+          await sql`INSERT INTO local_tasks (description, command) VALUES (${task.description}, ${task.command || null})`
+        }
+      }
+
+      if (args.insights && Array.isArray(args.insights)) {
+        for (const insight of args.insights) {
+          await sql`INSERT INTO jules_memory (category, key, content)
+                    VALUES ('insight', ${insight.type + '_' + Date.now()}, ${insight.content})`
+        }
+      }
+
+      if (args.vision_updates && Array.isArray(args.vision_updates)) {
+        for (const update of args.vision_updates) {
+          await sql`INSERT INTO shared_vision (topic, content)
+                    VALUES (${update.topic}, ${update.content})
+                    ON CONFLICT (topic) DO UPDATE SET content = EXCLUDED.content, updated_at = now()`
+        }
+      }
+
+      return { success: true, processed: { tasks: args.tasks?.length || 0, insights: args.insights?.length || 0, vision: args.vision_updates?.length || 0 } }
+    } catch (e: any) {
+      return { error: `Proactor reasoning failed: ${e.message}` }
+    }
   }
 
   const mcpResult = await mcpRequest('tools/call', { name: toolName, arguments: args })

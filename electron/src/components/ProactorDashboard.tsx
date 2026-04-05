@@ -37,12 +37,20 @@ export function ProactorDashboard() {
   const [activeTab, setActiveTab] = useState('todo')
   const [selectedRes, setSelectedRes] = useState<Reservation | null>(null)
   const [visionData, setVisionData] = useState<any[]>([])
+  const [tasks, setTasks] = useState<any[]>([])
+  const [insights, setInsights] = useState<any[]>([])
 
   useEffect(() => {
     const loadVision = async () => {
       try {
-        const visions = await window.juliet.memory.jules.getAll()
+        const [visions, memories, pendingTasks] = await Promise.all([
+          window.juliet.memory.getAllSharedVision(),
+          window.juliet.memory.jules.getAll(),
+          window.juliet.memory.tasks.getPending()
+        ])
         setVisionData(visions)
+        setInsights(memories.filter(m => m.category === 'insight'))
+        setTasks(pendingTasks)
       } catch {}
     }
     loadVision()
@@ -53,11 +61,22 @@ export function ProactorDashboard() {
   const handleAction = async (action: string) => {
     if (!selectedRes) return
     console.log(`Ejecutando ${action} para ${selectedRes.guestName}`)
+    const desc = `${action === 'delegate' ? 'DELEGAR A JULES' : action.toUpperCase()}: Reserva de ${selectedRes.guestName} en ${selectedRes.property}`
     await window.juliet.memory.tasks.create({
-      description: `${action}: Reserva de ${selectedRes.guestName} en ${selectedRes.property}`,
-      command: `echo "Procesando ${action}..."`
+      description: desc,
+      command: action === 'delegate' ? `aider --message "Gestiona proactivamente la reserva de ${selectedRes.guestName} en ${selectedRes.property}. Decide si llamar o enviar mensaje."` : `echo "Procesando ${action}..."`
     })
     setSelectedRes(null)
+  }
+
+  const [inputText, setInputText] = useState('')
+  const handleSend = async () => {
+    if (!inputText.trim()) return
+    // Guardar como tarea de razonamiento
+    await window.juliet.memory.tasks.create({
+       description: `PROACTOR INPUT: ${inputText}`,
+    })
+    setInputText('')
   }
 
   return (
@@ -176,14 +195,14 @@ export function ProactorDashboard() {
                 </div>
              </div>
 
-             <div className="flex-1 flex flex-col items-center justify-center text-center p-6 border border-dashed border-white/5 rounded-[2.5rem] mt-4">
+             <div className="flex-1 flex flex-col items-center justify-center text-center p-6 border border-dashed border-white/5 rounded-[2.5rem] mt-4 overflow-y-auto">
                 {visionData.length > 0 ? (
                    <div className="w-full text-left space-y-4">
-                      {visionData.slice(0, 4).map((v, i) => (
+                      {visionData.map((v, i) => (
                         <div key={i} className="flex gap-3 items-start animate-in fade-in slide-in-from-left-2 duration-500" style={{ animationDelay: `${i * 100}ms` }}>
                           <div className="w-1.5 h-1.5 rounded-full bg-purple-400 mt-1.5 shrink-0 shadow-[0_0_8px_rgba(192,132,252,0.6)]" />
                           <div className="text-[11px] leading-relaxed text-purple-100/80">
-                            <span className="font-black text-purple-300 uppercase tracking-tighter mr-1">{v.category}:</span> {v.content}
+                            <span className="font-black text-purple-300 uppercase tracking-tighter mr-1">{v.topic}:</span> {v.content}
                           </div>
                         </div>
                       ))}
@@ -205,7 +224,7 @@ export function ProactorDashboard() {
                   <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
                     <Zap size={20} />
                   </div>
-                  <h2 className="text-sm font-black uppercase tracking-[0.25em]">Insights</h2>
+                  <h2 className="text-sm font-black uppercase tracking-[0.25em]">Insights & Tareas</h2>
                 </div>
                 <div className="flex gap-1">
                    {['Todo', 'Alert', 'Idea', 'Task', 'Log'].map((t, i) => (
@@ -215,11 +234,27 @@ export function ProactorDashboard() {
                    ))}
                 </div>
               </div>
-              <div className="h-40 border border-dashed border-white/5 rounded-[2.5rem] p-6 space-y-3">
-                 <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/5">
-                    <Target size={14} className="text-sky-400" />
-                    <div className="text-[10px] font-bold text-sky-100/70">Mapeo de arquitectura V3 completado.</div>
-                 </div>
+              <div className="min-h-40 max-h-80 border border-dashed border-white/5 rounded-[2.5rem] p-6 space-y-3 overflow-y-auto">
+                 {tasks.map((task, i) => (
+                    <div key={task.id} className="flex items-center gap-3 p-3 rounded-2xl bg-sky-500/10 border border-sky-500/20 animate-in slide-in-from-right-2 duration-300">
+                      <Clock size={14} className="text-sky-400" />
+                      <div className="flex-1 text-[10px] font-bold text-sky-100/90">{task.description}</div>
+                      <div className="px-2 py-0.5 rounded-md bg-sky-500/20 text-sky-400 text-[8px] uppercase font-black">Pendiente</div>
+                    </div>
+                 ))}
+                 {insights.length > 0 ? (
+                    insights.map((insight, i) => (
+                      <div key={i} className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <Target size={14} className="text-sky-400" />
+                        <div className="text-[10px] font-bold text-sky-100/70">{insight.content}</div>
+                      </div>
+                    ))
+                 ) : (
+                    <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/5">
+                      <Target size={14} className="text-sky-400" />
+                      <div className="text-[10px] font-bold text-sky-100/70">Sin insights activos en esta sesión.</div>
+                    </div>
+                 )}
               </div>
            </section>
         </div>
@@ -231,10 +266,18 @@ export function ProactorDashboard() {
               <button className="p-4 rounded-[1.5rem] bg-white/5 text-muted hover:text-white transition-all"><Paperclip size={20} /></button>
               <input
                 type="text"
-                placeholder="Escribe un mensaje..."
-                className="flex-1 bg-transparent border-none outline-none text-sm font-medium px-2"
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                placeholder="Disparar razonamiento proactor..."
+                className="flex-1 bg-transparent border-none outline-none text-sm font-medium px-2 text-white"
               />
-              <button className="p-4 rounded-[1.5rem] bg-sky-500 text-[#020617] hover:bg-sky-400 transition-all shadow-lg shadow-sky-500/20"><Send size={20} /></button>
+              <button
+                onClick={handleSend}
+                className="p-4 rounded-[1.5rem] bg-sky-500 text-[#020617] hover:bg-sky-400 transition-all shadow-lg shadow-sky-500/20"
+              >
+                <Send size={20} />
+              </button>
            </div>
         </div>
 
