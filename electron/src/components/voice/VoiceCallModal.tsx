@@ -48,11 +48,9 @@ export function VoiceCallModal({ messages, mode, direction, actor, onClose }: Vo
       void startCall()
     }
 
-    // Listener para fragmentos de audio y transcripciones desde el main process
+    // Listener para fragmentos de audio desde el main process (transcripción eliminada por calidad)
     cleanupListenerRef.current = window.juliet.voice.onLLMChunk((chunk: any) => {
-      if (chunk.type === 'text' && chunk.text) {
-        setTranscript(prev => prev + chunk.text)
-      } else if (chunk.type === 'audio') {
+      if (chunk.type === 'audio') {
         audioQueueRef.current.push(chunk.data)
         if (!isPlayingRef.current) {
           void processAudioQueue()
@@ -363,7 +361,6 @@ export function VoiceCallModal({ messages, mode, direction, actor, onClose }: Vo
 
       <div className="mb-4 flex items-center gap-2">
         <div className="h-2.5 w-2.5 rounded-full animate-pulse" style={{ background: state === 'listening' ? '#86efac' : state === 'speaking' ? '#93c5fd' : '#fcd34d' }} />
-        <span className="text-sm text-text">{transcript ? `"${transcript}"` : ''}</span>
       </div>
 
       {error && <p className="mb-4 text-sm text-error">{error}</p>}

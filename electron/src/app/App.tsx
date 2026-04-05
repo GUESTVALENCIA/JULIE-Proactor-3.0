@@ -5,8 +5,9 @@ import { WorkspaceChrome } from './layout/WorkspaceChrome'
 import { SettingsPanel } from '../components/settings/SettingsPanel'
 import { MemoryPanel } from '../components/memory/MemoryPanel'
 import { VoiceCallModal } from '../components/voice/VoiceCallModal'
+import { ProactorDashboard } from '../components/ProactorDashboard'
 
-export type AppView = 'chat' | 'settings' | 'memory'
+export type AppView = 'chat' | 'settings' | 'memory' | 'dashboard'
 
 export interface ChatMessage {
   id: string
@@ -42,7 +43,7 @@ interface ActiveCall {
 }
 
 export default function App() {
-  const [view, setView] = useState<AppView>('chat')
+  const [view, setView] = useState<AppView>('dashboard')
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -212,6 +213,9 @@ export default function App() {
         }
       >
         <main className="flex-1 flex flex-col overflow-hidden">
+          {view === 'dashboard' && (
+            <ProactorDashboard />
+          )}
           {view === 'chat' && (
             <ChatArea
               messages={messages}

@@ -210,7 +210,11 @@ export function registerVoiceIPC(ipcMain: IpcMain, win: BrowserWindow) {
         params.baseUrl = 'http://localhost:8080/v1'
       }
 
-      await runAgenticLoop(provider, params, emitChunk, voiceAbortController.signal)
+      await runAgenticLoop(provider, params, (chunk) => {
+        // Filtrar transcripciones de texto para el pipeline de voz (mejorar calidad)
+        if (chunk.type === 'text') return;
+        emitChunk(chunk);
+      }, voiceAbortController.signal)
       win.webContents.send('voice:llm-chunk', { type: 'done' })
     } catch (e: any) {
       if (e.name === 'AbortError') return
@@ -227,32 +231,32 @@ export function registerVoiceIPC(ipcMain: IpcMain, win: BrowserWindow) {
 
   // TTS vía proceso principal (evita 403 desde renderer)
   ipcMain.handle('voice:tts', async (_e, { text, actor, provider, voice }: { text: string; actor?: string; provider?: string; voice?: string }) => {
-    // Juliet/Jules usa Microsoft Edge TTS (vía API de Azure o proxy compatible)
-    // El usuario prefiere 'Elvira Neural' para Juliet (Peninsular Spanish)
-
-    const isJuliet = actor === 'jules' || actor === 'juliet' || voice?.includes('Elvira')
-    const useEdge = provider === 'edge' || isJuliet
+    // Jules/Juliet usa Microsoft Edge TTS 'Elvira Neural' por defecto
+    const isTechnicalJules = actor === 'jules' || actor === 'juliet'
+    const useEdge = provider === 'edge' || isTechnicalJules || voice?.includes('Elvira')
 
     if (useEdge) {
       try {
-        // El proxy G4F (8080) ahora redirige es-ES-ElviraNeural a Microsoft Edge TTS local/remoto
+        // Mapeo preferente: Elvira Neural para un tono profesional español peninsular
+        const targetVoice = isTechnicalJules ? 'es-ES-ElviraNeural' : (voice || 'es-ES-ElviraNeural')
+
         const res = await fetch('http://localhost:8080/v1/audio/speech', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             input: text,
-            voice: isJuliet ? 'es-ES-ElviraNeural' : (voice || 'es-ES-ElviraNeural'),
+            voice: targetVoice,
             model: 'tts-1',
             response_format: 'mp3'
           }),
-          signal: AbortSignal.timeout(10000)
+          signal: AbortSignal.timeout(15000)
         })
         if (res.ok) {
           const buf = await res.arrayBuffer()
           return Buffer.from(buf).toString('base64')
         }
       } catch (e) {
-        console.warn('[TTS Edge] Fallback a Deepgram:', e)
+        console.warn('[TTS Edge] Error en Elvira Neural, intentando fallback técnico:', e)
       }
     }
 

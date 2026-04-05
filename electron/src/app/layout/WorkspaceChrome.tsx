@@ -657,6 +657,7 @@ export function WorkspaceChrome({
       <div className="relative flex-1 overflow-hidden">
         <div className="pointer-events-none absolute inset-y-0 left-0 z-30 flex w-[72px] items-center justify-center">
           <div className="pointer-events-auto flex flex-col gap-3 rounded-full border border-line/80 bg-panel/90 p-2 shadow-2xl backdrop-blur">
+            <RailButton active={view === 'dashboard'} icon={LayoutGrid} label="Dashboard" onClick={() => onViewChange('dashboard')} />
             <RailButton active={leftPanel === 'history'} icon={History} label="Chat" onClick={() => toggleLeftPanel('history')} />
             <RailButton active={leftPanel === 'studio'} icon={Sparkles} label="Studio" onClick={() => toggleLeftPanel('studio')} />
             <RailButton active={leftPanel === 'palette'} icon={Palette} label="Paleta" onClick={() => toggleLeftPanel('palette')} />
@@ -1578,9 +1579,9 @@ function RailButton({
     <button
       onClick={onClick}
       title={label}
-      className={`flex h-12 w-12 items-center justify-center rounded-full border transition-colors ${
+      className={`flex h-12 w-12 items-center justify-center rounded-full border transition-all ${
         active
-          ? 'border-accent/60 bg-accent/10 text-accent'
+          ? 'border-accent/60 bg-accent text-black scale-110 shadow-lg shadow-accent/20'
           : 'border-line bg-panel-2 text-muted hover:border-accent/40 hover:text-text'
       }`}
     >
