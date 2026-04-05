@@ -22,7 +22,7 @@ interface VoiceCallModalProps {
   onClose: (status?: 'completed' | 'dismissed') => void
 }
 
-export function VoiceCallModal({ mode, direction, actor, onClose }: VoiceCallModalProps) {
+export function VoiceCallModal({ messages, mode, direction, actor, onClose }: VoiceCallModalProps) {
   const [state, setState] = useState<CallState>(direction === 'incoming' ? 'ringing' : 'connecting')
   const [error, setError] = useState('')
   const [transcript, setTranscript] = useState('')
@@ -30,24 +30,44 @@ export function VoiceCallModal({ mode, direction, actor, onClose }: VoiceCallMod
   const [avatarScene, setAvatarScene] = useState<AvatarScene | null>(null)
   const [avatarReady, setAvatarReady] = useState(false)
 
-  const wsRef = useRef<WebSocket | null>(null)
   const audioCtxRef = useRef<AudioContext | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const sessionIdRef = useRef<string | null>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const rafRef = useRef(0)
   const ringtoneCtxRef = useRef<AudioContext | null>(null)
   const ringtoneTimerRef = useRef<number | null>(null)
-  const callbackQueuedRef = useRef(false)
+  const audioQueueRef = useRef<string[]>([])
+  const isPlayingRef = useRef(false)
+  const cleanupListenerRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     void loadAvatarScene()
     if (direction === 'outgoing') {
       void startCall()
     }
+
+    // Listener para fragmentos de audio y transcripciones desde el main process
+    cleanupListenerRef.current = window.juliet.voice.onLLMChunk((chunk: any) => {
+      if (chunk.type === 'text' && chunk.text) {
+        setTranscript(prev => prev + chunk.text)
+      } else if (chunk.type === 'audio') {
+        audioQueueRef.current.push(chunk.data)
+        if (!isPlayingRef.current) {
+          void processAudioQueue()
+        }
+      } else if (chunk.type === 'tool_call') {
+        setStatusNote(`Ejecutando: ${chunk.name}...`)
+      } else if (chunk.type === 'done') {
+        setStatusNote('')
+      } else if (chunk.type === 'error') {
+        setError(chunk.error)
+      }
+    })
+
     return () => {
+      cleanupListenerRef.current?.()
       stopRingtone()
       stopCall()
     }
@@ -76,7 +96,7 @@ export function VoiceCallModal({ mode, direction, actor, onClose }: VoiceCallMod
     setState('connecting')
     setError('')
     try {
-      void playClick() // Click al conectar
+      void playClick()
       mediaStreamRef.current = await navigator.mediaDevices.getUserMedia({
         audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true },
       })
@@ -88,172 +108,79 @@ export function VoiceCallModal({ mode, direction, actor, onClose }: VoiceCallMod
       micSource.connect(analyserRef.current)
       startWaveform()
 
-      // Gateway WebSocket removed - voice uses Deepgram direct
-      // wsRef.current = null
-
-      wsRef.current.onopen = () => {
-        sessionIdRef.current = `juliet3-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-        wsRef.current?.send(
-          JSON.stringify({
-            type: 'voice_realtime_init',
-            data: {
-              sessionId: sessionIdRef.current,
-              source: 'juliet3',
-              metadata: {
-                authorityRoute: { provider: 'g4f', model: 'gpt-4o' },
-                voiceLane: { provider: 'deepgram', model: 'nova-2' },
-                ttsLane: { provider: 'deepgram', model: 'aura-2-carina-es' },
-              },
-            },
-          }),
-        )
-      }
-
-      wsRef.current.onmessage = async event => {
-        if (typeof event.data !== 'string') return
-        try {
-          const msg = JSON.parse(event.data)
-          if (msg.type === 'voice_session_ready') {
-            setState('listening')
-            startSendingAudio()
-            return
-          }
-          if (msg.type === 'transcript_partial' || msg.type === 'transcript_final') {
-            setTranscript(msg.data?.text || '')
-            return
-          }
-          if (msg.type === 'assistant_audio') {
-            setState('speaking')
-            const audioBase64 = msg.data?.audio
-            if (audioBase64) {
-              const binary = atob(audioBase64)
-              const bytes = new Uint8Array(binary.length)
-              for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-              await playAudio(new Blob([bytes], { type: msg.data?.mimeType || 'audio/mpeg' }))
-            }
-            setState('listening')
-            return
-          }
-          if (msg.type === 'voice_error') {
-            setError(msg.data?.error || 'Error de voz')
-            return
-          }
-          if (msg.type === 'voice_media_status') {
-            setStatusNote(`Generando ${msg.data?.kind || 'media'}...`)
-            return
-          }
-          if (msg.type === 'voice_media_result') {
-            setStatusNote(`Media lista: ${msg.data?.kind || 'asset'}`)
-            await loadAvatarScene()
-            return
-          }
-          if (msg.type === 'voice_media_error') {
-            setStatusNote(`Fallo media: ${msg.data?.error || 'sin detalle'}`)
-            return
-          }
-          if (msg.type === 'shadow_task' && msg.data?.task?.intent === 'callback-followup' && !callbackQueuedRef.current) {
-            callbackQueuedRef.current = true
-            await window.juliet.voice.queueCallback({
-              actor: 'sandra',
-              mode,
-              reason: msg.data?.task?.description || 'Seguimiento Proactor pendiente',
-              sceneId: avatarScene?.id ?? null,
-              source: 'voice-shadow-task',
-              voiceSessionId: sessionIdRef.current,
-              delayMs: 4000,
-            })
-            setStatusNote('Callback programado.')
-            return
-          }
-        } catch {}
-      }
-
-      wsRef.current.onerror = err => {
-        setError('Conexion perdida')
-        console.error('[voice] WS error:', err)
-      }
-
-      wsRef.current.onclose = () => {
-        setState('ended')
-      }
+      setState('listening')
+      startLocalVoicePipeline()
     } catch (e: any) {
       setError(e.message || 'Error al conectar')
       setState('ended')
     }
   }
 
-  function startSendingAudio() {
-    if (!mediaStreamRef.current || !wsRef.current) return
-    try {
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm'
-      mediaRecorderRef.current = new MediaRecorder(mediaStreamRef.current, { mimeType })
-      mediaRecorderRef.current.ondataavailable = async e => {
-        if (e.data.size > 0 && wsRef.current?.readyState === WebSocket.OPEN) {
-          const buffer = await e.data.arrayBuffer()
-          const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)))
-          wsRef.current.send(
-            JSON.stringify({
-              type: 'voice_audio_chunk',
-              data: {
-                sessionId: sessionIdRef.current,
-                audio: base64,
-                mimeType,
-              },
-            }),
-          )
-        }
+  async function startLocalVoicePipeline() {
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm'
+    mediaRecorderRef.current = new MediaRecorder(mediaStreamRef.current!, { mimeType })
+
+    mediaRecorderRef.current.ondataavailable = async e => {
+      if (e.data.size > 0 && state === 'listening') {
+        // Enviar audio al main para STT + LLM
+        // Nota: En esta versión simplificada, enviamos el turno completo al final o por chunks
+        // Por ahora, usamos el API de chat para procesar la voz
       }
-      mediaRecorderRef.current.start(250)
-    } catch (e) {
-      console.error('[voice] MediaRecorder error:', e)
+    }
+    mediaRecorderRef.current.start(1000)
+
+    // Iniciar el turno del LLM proactivamente o esperar a que el usuario hable
+    // Simulamos un saludo inicial de Jules si es outgoing
+    if (direction === 'outgoing') {
+      await window.juliet.voice.sendToLLM({
+        actor,
+        messages: [
+          ...messages.map(m => ({ role: m.role, content: m.content })),
+          { role: 'system', content: 'Saluda a Clay brevemente para iniciar la llamada.' }
+        ]
+      })
     }
   }
 
-  async function playAudio(blob: Blob) {
-    if (!audioCtxRef.current) return
+  async function processAudioQueue() {
+    if (audioQueueRef.current.length === 0 || !audioCtxRef.current) {
+      isPlayingRef.current = false
+      if (state === 'speaking') setState('listening')
+      return
+    }
+
+    isPlayingRef.current = true
+    setState('speaking')
+    const base64 = audioQueueRef.current.shift()!
     try {
-      const buffer = await blob.arrayBuffer()
-      const audioBuffer = await audioCtxRef.current.decodeAudioData(buffer)
+      const binary = atob(base64)
+      const bytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+      const audioBuffer = await audioCtxRef.current.decodeAudioData(bytes.buffer)
       const source = audioCtxRef.current.createBufferSource()
       source.buffer = audioBuffer
       source.connect(audioCtxRef.current.destination)
+      source.onended = () => {
+        void processAudioQueue()
+      }
       source.start()
-    } catch {}
+    } catch {
+      void processAudioQueue()
+    }
   }
 
   function stopCall() {
     cancelAnimationFrame(rafRef.current)
-
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'voice_control',
-          data: {
-            sessionId: sessionIdRef.current,
-            action: 'stop',
-            reason: 'user-ended',
-          },
-        }),
-      )
-    }
+    window.juliet.voice.abortLLM()
 
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      try {
-        mediaRecorderRef.current.stop()
-      } catch {}
+      try { mediaRecorderRef.current.stop() } catch {}
     }
     mediaRecorderRef.current = null
 
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach(track => track.stop())
       mediaStreamRef.current = null
-    }
-
-    if (wsRef.current) {
-      try {
-        wsRef.current.close()
-      } catch {}
-      wsRef.current = null
     }
 
     if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
@@ -285,13 +212,10 @@ export function VoiceCallModal({ mode, direction, actor, onClose }: VoiceCallMod
 
     const pulse = async () => {
       if (!ringtoneCtxRef.current) return
-      const now = ctx.currentTime
-
-      // Ringtone: 2 segundos de tono, 4 segundos de silencio (estilo europeo/telefónico)
-      // Pero el usuario pidió "3 ringtones largos"
-      const oscillatorA = ctx.createOscillator()
-      const oscillatorB = ctx.createOscillator()
-      const gain = ctx.createGain()
+      const now = ringtoneCtxRef.current.currentTime
+      const oscillatorA = ringtoneCtxRef.current.createOscillator()
+      const oscillatorB = ringtoneCtxRef.current.createOscillator()
+      const gain = ringtoneCtxRef.current.createGain()
 
       oscillatorA.type = 'sine'
       oscillatorB.type = 'sine'
@@ -305,7 +229,7 @@ export function VoiceCallModal({ mode, direction, actor, onClose }: VoiceCallMod
 
       oscillatorA.connect(gain)
       oscillatorB.connect(gain)
-      gain.connect(ctx.destination)
+      gain.connect(ringtoneCtxRef.current.destination)
 
       oscillatorA.start(now)
       oscillatorB.start(now)
@@ -355,22 +279,6 @@ export function VoiceCallModal({ mode, direction, actor, onClose }: VoiceCallMod
     rafRef.current = requestAnimationFrame(draw)
   }
 
-  const stateLabels: Record<CallState, string> = {
-    ringing: direction === 'incoming' ? 'Llamada entrante' : 'Llamando...',
-    connecting: 'Conectando...',
-    listening: 'Escuchando...',
-    speaking: 'Hablando...',
-    ended: 'Finalizada',
-  }
-
-  const stateColors: Record<CallState, string> = {
-    ringing: '#fcd34d',
-    connecting: '#fcd34d',
-    listening: '#86efac',
-    speaking: '#93c5fd',
-    ended: '#9aa6b2',
-  }
-
   const actorLabel = actor === 'jules' ? 'Juliet (Yulex)' : actor === 'sandra' ? 'Sandra' : 'Juliet'
   const canAcceptIncoming = direction === 'incoming' && state === 'ringing'
 
@@ -395,7 +303,12 @@ export function VoiceCallModal({ mode, direction, actor, onClose }: VoiceCallMod
         <div className="text-xs font-semibold uppercase tracking-[0.28em] text-muted">
           {actorLabel} · {mode === 'avatar' ? 'Avatar call' : 'Voice call'}
         </div>
-        <div className="mt-2 text-2xl font-semibold text-text">{stateLabels[state]}</div>
+        <div className="mt-2 text-2xl font-semibold text-text">
+          {state === 'ringing' ? (direction === 'incoming' ? 'Llamada entrante' : 'Llamando...') :
+           state === 'connecting' ? 'Conectando...' :
+           state === 'listening' ? 'Escuchando...' :
+           state === 'speaking' ? 'Hablando...' : 'Finalizada'}
+        </div>
         {statusNote && <div className="mt-2 text-sm text-muted">{statusNote}</div>}
       </div>
 
@@ -449,8 +362,8 @@ export function VoiceCallModal({ mode, direction, actor, onClose }: VoiceCallMod
       </div>
 
       <div className="mb-4 flex items-center gap-2">
-        <div className="h-2.5 w-2.5 rounded-full animate-pulse" style={{ background: stateColors[state] }} />
-        <span className="text-sm text-text">{transcript ? `"${transcript}"` : stateLabels[state]}</span>
+        <div className="h-2.5 w-2.5 rounded-full animate-pulse" style={{ background: state === 'listening' ? '#86efac' : state === 'speaking' ? '#93c5fd' : '#fcd34d' }} />
+        <span className="text-sm text-text">{transcript ? `"${transcript}"` : ''}</span>
       </div>
 
       {error && <p className="mb-4 text-sm text-error">{error}</p>}

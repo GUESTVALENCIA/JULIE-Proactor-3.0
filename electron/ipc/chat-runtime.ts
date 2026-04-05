@@ -406,6 +406,27 @@ async function streamOpenAICompatTurn(
 }
 
 export async function runAgenticLoop(provider: string, params: any, emitChunk: ChatChunkEmitter, signal: AbortSignal) {
+  // Inyectar memoria dinámica de Neon DB (Shared Vision) antes de empezar el bucle
+  // Nota: No importamos desde scripts/ para evitar fallos en producción (ASAR)
+  try {
+    const { getSecret } = await import('./settings.ipc')
+    const url = getSecret('neon_url')
+    if (url) {
+      const { neon } = await import('@neondatabase/serverless')
+      const sql = neon(url)
+      const visions: any[] = await sql`SELECT topic, content FROM shared_vision ORDER BY updated_at DESC`
+      if (visions && visions.length > 0) {
+        const visionContext = visions.map(v => `[${v.topic}]: ${v.content}`).join('\n')
+        const systemMsg = params.messages.find((m: any) => m.role === 'system')
+        if (systemMsg) {
+          systemMsg.content += `\n\n## VISIÓN COMPARTIDA ACTUAL (Neon DB):\n${visionContext}`
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[Runtime] No se pudo inyectar Shared Vision:', e)
+  }
+
   params.messages = Array.isArray(params.messages) ? params.messages : []
   let turns = 0
   const MAX_TURNS = 10

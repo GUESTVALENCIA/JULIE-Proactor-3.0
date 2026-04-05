@@ -244,7 +244,8 @@ export function registerVoiceIPC(ipcMain: IpcMain, win: BrowserWindow) {
             voice: isJuliet ? 'es-ES-ElviraNeural' : (voice || 'es-ES-ElviraNeural'),
             model: 'tts-1',
             response_format: 'mp3'
-          })
+          }),
+          signal: AbortSignal.timeout(10000)
         })
         if (res.ok) {
           const buf = await res.arrayBuffer()
